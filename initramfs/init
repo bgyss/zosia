@@ -1,0 +1,191 @@
+#!/bin/sh
+set -eu
+
+export PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+log() { printf '%s\n' "$*" >/dev/console; }
+
+poweroff_now() {
+  log "zosia: shutting down"
+  poweroff -f >/dev/console 2>/dev/console || reboot -f >/dev/console 2>/dev/console || :
+  while :; do sleep 1; done
+}
+
+trap poweroff_now INT TERM
+
+log "zosia: init"
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+
+CMDLINE="$(cat /proc/cmdline 2>/dev/null || true)"
+ZOSIA_CI=0
+case " $CMDLINE " in
+  *" zosia.ci=1 "*) ZOSIA_CI=1 ;;
+esac
+ZOSIA_DIAG=0
+case " $CMDLINE " in
+  *" zosia.diag=1 "*) ZOSIA_DIAG=1 ;;
+esac
+ZOSIA_SELFTEST=0
+case " $CMDLINE " in
+  *" zosia.selftest=1 "*) ZOSIA_SELFTEST=1 ;;
+esac
+ZOSIA_PERF=0
+case " $CMDLINE " in
+  *" zosia.perf=1 "*) ZOSIA_PERF=1 ;;
+esac
+ZOSIA_ALLOW_LLAMARUN=0
+case " $CMDLINE " in
+  *" zosia.allow_llama_run=1 "*) ZOSIA_ALLOW_LLAMARUN=1 ;;
+esac
+ZOSIA_PERF_TOKENS=64
+ZOSIA_LLAMA_THREADS=""
+ZOSIA_LLAMA_BATCH_THREADS=""
+ZOSIA_LLAMA_ARGS=""
+for arg in $CMDLINE; do
+  case "$arg" in
+    zosia.perf.tokens=*) ZOSIA_PERF_TOKENS="${arg#zosia.perf.tokens=}" ;;
+    zosia.llama_threads=*) ZOSIA_LLAMA_THREADS="${arg#zosia.llama_threads=}" ;;
+    zosia.llama_batch_threads=*) ZOSIA_LLAMA_BATCH_THREADS="${arg#zosia.llama_batch_threads=}" ;;
+    zosia.llama_args=*) ZOSIA_LLAMA_ARGS="${arg#zosia.llama_args=}" ;;
+  esac
+done
+
+mkdir -p /models
+
+MODEL_DEV=""
+for dev in /dev/vda /dev/vdb /dev/vdc /dev/vdd; do
+  if [ -b "$dev" ]; then
+    MODEL_DEV="$dev"
+    break
+  fi
+done
+
+if [ -n "$MODEL_DEV" ]; then
+  if ! mount -t ext4 -o ro "$MODEL_DEV" /models >/dev/console 2>/dev/console; then
+    log "zosia: failed to mount model disk ($MODEL_DEV) at /models"
+  fi
+else
+  log "zosia: no virtio model disk found (/dev/vda..)"
+fi
+
+MODEL_PATH=""
+if [ -f /models/model.gguf ]; then
+  MODEL_PATH="/models/model.gguf"
+else
+  MODEL_PATH="$(ls /models/*.gguf 2>/dev/null | head -n 1 || true)"
+fi
+
+LLAMA_BIN=""
+if command -v llama-cli >/dev/null 2>&1; then
+  LLAMA_BIN="llama-cli"
+elif command -v llama >/dev/null 2>&1; then
+  LLAMA_BIN="llama"
+elif command -v llama-run >/dev/null 2>&1; then
+  LLAMA_BIN="llama-run"
+fi
+
+if [ "$ZOSIA_SELFTEST" = "1" ]; then
+  log "zosia: selftest"
+  log "zosia: llama_bin=${LLAMA_BIN:-none}"
+  if [ -n "$LLAMA_BIN" ]; then
+    "$LLAMA_BIN" --help </dev/console >/dev/console 2>/dev/console || true
+  fi
+  sleep 1 || true
+  poweroff_now
+fi
+
+if [ "$ZOSIA_DIAG" = "1" ]; then
+  log "zosia: diag"
+  log "zosia: model_dev=${MODEL_DEV:-none}"
+  log "zosia: llama_bin=${LLAMA_BIN:-none}"
+  log "zosia: model_path=${MODEL_PATH:-none}"
+  sleep 1 || true
+  poweroff_now
+fi
+
+DEFAULT_THREADS="$(grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 1)"
+LLAMA_THREADS="${ZOSIA_LLAMA_THREADS:-$DEFAULT_THREADS}"
+LLAMA_BATCH_THREADS="${ZOSIA_LLAMA_BATCH_THREADS:-$LLAMA_THREADS}"
+LLAMA_ARGS="-t $LLAMA_THREADS -tb $LLAMA_BATCH_THREADS"
+if [ -n "$ZOSIA_LLAMA_ARGS" ]; then
+  LLAMA_EXTRA_ARGS="$(printf '%s' "$ZOSIA_LLAMA_ARGS" | tr ',' ' ')"
+  LLAMA_ARGS="$LLAMA_ARGS $LLAMA_EXTRA_ARGS"
+fi
+
+if [ "$ZOSIA_PERF" = "1" ]; then
+  log "zosia: perf"
+  log "zosia: llama_bin=${LLAMA_BIN:-none}"
+  log "zosia: model_path=${MODEL_PATH:-none}"
+  if [ -z "$LLAMA_BIN" ] || [ -z "$MODEL_PATH" ]; then
+    log "zosia: perf requires model + llama binary"
+    sleep 1 || true
+    poweroff_now
+  fi
+  if [ "$LLAMA_BIN" = "llama-run" ]; then
+    log "zosia: perf requires llama-cli; llama-run is non-interactive"
+    sleep 1 || true
+    poweroff_now
+  fi
+  PERF_PROMPT="Describe a lighthouse in one short sentence."
+  START_UPTIME="$(cut -d' ' -f1 /proc/uptime)"
+  set -- $LLAMA_ARGS
+  if [ "$LLAMA_BIN" = "llama-run" ]; then
+    "$LLAMA_BIN" "$@" "$MODEL_PATH" -n "$ZOSIA_PERF_TOKENS" -p "$PERF_PROMPT" </dev/console >/dev/console 2>/dev/console || true
+  else
+    "$LLAMA_BIN" -m "$MODEL_PATH" "$@" -n "$ZOSIA_PERF_TOKENS" -p "$PERF_PROMPT" </dev/console >/dev/console 2>/dev/console || true
+  fi
+  END_UPTIME="$(cut -d' ' -f1 /proc/uptime)"
+  awk -v s="$START_UPTIME" -v e="$END_UPTIME" -v n="$ZOSIA_PERF_TOKENS" \
+    'BEGIN { d = e - s; if (d <= 0) d = 0.0001; printf "zosia: perf tokens=%d seconds=%.3f tok_per_s=%.2f\n", n, d, n / d }' \
+    >/dev/console
+  sleep 1 || true
+  poweroff_now
+fi
+
+if [ -n "$LLAMA_BIN" ] && [ -n "$MODEL_PATH" ]; then
+  if [ "$LLAMA_BIN" = "llama-run" ] && [ "$ZOSIA_ALLOW_LLAMARUN" != "1" ]; then
+    log "zosia: llama-run is non-interactive; rebuild with llama-cli or set zosia.allow_llama_run=1"
+    LLAMA_BIN=""
+  fi
+fi
+
+if [ -n "$LLAMA_BIN" ] && [ -n "$MODEL_PATH" ]; then
+  log "zosia: starting $LLAMA_BIN (model $MODEL_PATH)"
+  if [ "$LLAMA_BIN" = "llama-run" ]; then
+    set -- $LLAMA_RUN_ARGS
+    "$LLAMA_BIN" "$@" "$MODEL_PATH" </dev/console >/dev/console 2>/dev/console || true
+  else
+    set -- $LLAMA_ARGS
+    "$LLAMA_BIN" -m "$MODEL_PATH" "$@" </dev/console >/dev/console 2>/dev/console || true
+  fi
+else
+  if [ -z "$LLAMA_BIN" ]; then
+    log "zosia: llama binary not found; starting stub prompt"
+  else
+    log "zosia: model not found in /models; starting stub prompt"
+  fi
+  if [ "$ZOSIA_CI" = "1" ]; then
+    log "zosia: ci mode; powering off"
+    sleep 1 || true
+  else
+    /bin/zosia-repl </dev/console >/dev/console 2>/dev/console || true
+  fi
+fi
+
+poweroff_now
+LLAMA_RUN_ARGS="-t $LLAMA_THREADS"
+set -- $LLAMA_ARGS
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -c|--context-size)
+      shift
+      if [ $# -gt 0 ]; then
+        LLAMA_RUN_ARGS="$LLAMA_RUN_ARGS -c $1"
+      fi
+      ;;
+  esac
+  shift || true
+done

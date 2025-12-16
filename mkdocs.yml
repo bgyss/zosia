@@ -1,0 +1,13 @@
+site_name: zosia
+site_description: Boot a minimal Linux VM directly into a GPT prompt.
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Architecture: architecture.md
+  - Troubleshooting: troubleshooting.md
+theme:
+  name: mkdocs
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true

@@ -1,0 +1,5 @@
+config BR2_PACKAGE_LLAMA_CPP
+	bool "llama.cpp (llama-run)"
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	help
+	  Build and install llama.cpp's llama-run into /usr/bin.

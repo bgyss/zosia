@@ -1,0 +1,26 @@
+#!/bin/sh
+set -eu
+
+printf "zosia (stub): no model loaded\n"
+printf "Type /poweroff to exit.\n\n"
+
+while :; do
+  printf "> "
+  if ! IFS= read -r line; then
+    break
+  fi
+
+  case "$line" in
+    "/poweroff"|"/quit"|"/exit")
+      break
+      ;;
+  esac
+
+  printf "assistant: "
+  for word in $line; do
+    printf "%s " "$word"
+    sleep 0.03 || true
+  done
+  printf "\n"
+done
+

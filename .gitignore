@@ -1,0 +1,18 @@
+.DS_Store
+.vscode/
+
+# Buildroot (downloaded sources + outputs)
+buildroot/buildroot-src/
+buildroot/output/
+
+# llama.cpp (downloaded source + build outputs)
+llama.cpp/
+third_party/
+
+# Artifacts
+artifacts/
+*.img
+*.qcow2
+
+# Local models
+*.gguf

@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke-boot-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential cpio flex git libncurses5-dev libssl-dev \
+            python3 rsync unzip wget qemu-system-arm ripgrep
+      - name: Build kernel + initramfs (Buildroot)
+        run: ./scripts/build-buildroot.sh
+      - name: Smoke boot (stub)
+        run: ./scripts/ci/smoke-boot.sh
+
