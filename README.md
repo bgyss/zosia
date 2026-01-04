@@ -127,6 +127,39 @@ Shutdown:
 - Type `/poweroff` in the prompt, or
 - Press Ctrl+C
 
+## Testing
+
+Run the test suite:
+
+```bash
+# Setup BATS framework (first time)
+./tests/setup-bats.sh
+
+# Run all tests
+./tests/run-tests.sh
+
+# Run only unit tests (fast, no build required)
+./tests/run-tests.sh unit
+
+# Run only integration tests (requires build artifacts + QEMU)
+./tests/run-tests.sh integration
+```
+
+CI smoke tests:
+
+```bash
+# Basic smoke boot
+./scripts/ci/smoke-boot.sh
+
+# Test specific boot modes
+./scripts/ci/boot-mode-test.sh ci
+./scripts/ci/boot-mode-test.sh diag
+./scripts/ci/boot-mode-test.sh selftest
+```
+
+See `docs/testing.md` for full testing documentation.
+
 ## Docs
 
 - `mkdocs.yml` + `docs/` (see `docs/quickstart.md`)
+- `docs/testing.md` - Testing guide
