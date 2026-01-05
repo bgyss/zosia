@@ -1,0 +1,6 @@
+# BATS framework (installed by setup-bats.sh)
+.bats/
+
+# Test output
+*.log
+*.tmp

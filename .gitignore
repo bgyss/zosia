@@ -16,3 +16,5 @@ artifacts/
 
 # Local models
 *.gguf
+# Exception: tiny test fixture (24 bytes)
+!tests/fixtures/tiny.gguf

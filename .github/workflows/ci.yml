@@ -5,8 +5,22 @@ on:
   pull_request:
 
 jobs:
+  # Run unit tests first (fast, no build required)
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup BATS
+        run: ./tests/setup-bats.sh
+
+      - name: Run unit tests
+        run: ./tests/run-tests.sh unit
+
+  # Build and run smoke boot test
   smoke-boot-aarch64:
     runs-on: ubuntu-latest
+    needs: unit-tests
     steps:
       - uses: actions/checkout@v4
 
@@ -36,3 +50,65 @@ jobs:
       - name: Smoke boot (stub)
         run: ./scripts/ci/smoke-boot.sh
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            artifacts/aarch64/Image
+            artifacts/aarch64/initramfs.cpio.gz
+          retention-days: 7
+
+  # Run integration tests (requires build artifacts)
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: smoke-boot-aarch64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-arm ripgrep e2fsprogs xxd
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: artifacts/aarch64
+
+      - name: Setup BATS
+        run: ./tests/setup-bats.sh
+
+      - name: Run integration tests
+        run: ./tests/run-tests.sh integration
+
+  # Run all boot mode tests
+  boot-modes:
+    runs-on: ubuntu-latest
+    needs: smoke-boot-aarch64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-arm ripgrep
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: artifacts/aarch64
+
+      - name: Test diagnostic mode
+        run: |
+          ./scripts/ci/boot-mode-test.sh diag
+
+      - name: Test selftest mode
+        run: |
+          ./scripts/ci/boot-mode-test.sh selftest
+
+      - name: Test CI mode shutdown
+        run: |
+          ./scripts/ci/boot-mode-test.sh ci
