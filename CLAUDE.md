@@ -526,4 +526,4 @@ RAM_MB=2048 APPEND_EXTRA='zosia.diag=1' ./scripts/run-qemu-aarch64.sh
 ---
 
 **Last Updated**: 2026-01-04
-**Project Status**: MVP complete (v0.0.1 alpha)
+**Project Status**: MVP complete (v0.0.2 alpha)
