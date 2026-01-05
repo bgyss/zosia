@@ -45,7 +45,6 @@ run_qemu() {
 
   local tmp_out
   tmp_out="$(mktemp)"
-  trap 'rm -f "$tmp_out"' EXIT
 
   local cmd=(
     qemu-system-aarch64
@@ -74,16 +73,20 @@ run_qemu() {
   fi
 
   # Check for expected pattern
+  local result=0
   if grep -q "$expected_pattern" "$tmp_out"; then
     echo "[$test_name] PASSED: found '$expected_pattern'"
-    return 0
   else
     echo "[$test_name] FAILED: expected '$expected_pattern' not found"
     echo "--- Output ---"
     cat "$tmp_out"
     echo "--- End ---"
-    return 1
+    result=1
   fi
+
+  # Cleanup
+  rm -f "$tmp_out"
+  return $result
 }
 
 # Main
