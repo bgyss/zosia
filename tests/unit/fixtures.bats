@@ -46,10 +46,9 @@ setup() {
 @test "generate-tiny-gguf.sh creates valid fixture" {
   local tmp_gguf
   tmp_gguf=$(mktemp)
-  trap "rm -f '$tmp_gguf'" RETURN
 
-  run "$TESTS_DIR/fixtures/generate-tiny-gguf.sh" "$tmp_gguf"
-  assert_success
+  # Run the generator (don't use 'run' so file persists)
+  "$TESTS_DIR/fixtures/generate-tiny-gguf.sh" "$tmp_gguf"
 
   # Check the generated file
   local magic
@@ -59,4 +58,7 @@ setup() {
   local size
   size=$(wc -c < "$tmp_gguf")
   assert_equal "$size" "24"
+
+  # Cleanup
+  rm -f "$tmp_gguf"
 }
