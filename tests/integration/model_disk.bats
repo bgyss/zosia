@@ -37,10 +37,9 @@ skip_if_no_fixture() {
   local fixture="$TESTS_DIR/fixtures/tiny.gguf"
   local tmp_img
   tmp_img=$(mktemp --suffix=.img)
-  trap "rm -f '$tmp_img'" RETURN
 
-  run "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img"
-  assert_success
+  # Run the script directly (not with 'run') to avoid trap issues
+  "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img"
 
   # Verify the image was created
   assert_file_exists "$tmp_img"
@@ -48,6 +47,9 @@ skip_if_no_fixture() {
   # Verify it's a valid ext4 image
   run file "$tmp_img"
   assert_output --partial "ext4 filesystem"
+
+  # Cleanup
+  rm -f "$tmp_img"
 }
 
 @test "model disk contains model.gguf file" {
@@ -57,13 +59,15 @@ skip_if_no_fixture() {
   local fixture="$TESTS_DIR/fixtures/tiny.gguf"
   local tmp_img
   tmp_img=$(mktemp --suffix=.img)
-  trap "rm -f '$tmp_img'" RETURN
 
   "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img"
 
   # Check that model.gguf exists in the image using debugfs
   run debugfs -R "stat /model.gguf" "$tmp_img" 2>/dev/null
   assert_success
+
+  # Cleanup
+  rm -f "$tmp_img"
 }
 
 @test "model disk image has correct model file size" {
@@ -72,19 +76,21 @@ skip_if_no_fixture() {
 
   local fixture="$TESTS_DIR/fixtures/tiny.gguf"
   local fixture_size
-  fixture_size=$(wc -c < "$fixture")
+  fixture_size=$(wc -c < "$fixture" | tr -d ' ')
 
   local tmp_img
   tmp_img=$(mktemp --suffix=.img)
-  trap "rm -f '$tmp_img'" RETURN
 
   "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img"
 
-  # Extract file size from debugfs stat output
+  # Extract file size from debugfs stat output (portable grep without -P)
   local img_size
-  img_size=$(debugfs -R "stat /model.gguf" "$tmp_img" 2>/dev/null | grep -oP 'Size: \K\d+' || echo "0")
+  img_size=$(debugfs -R "stat /model.gguf" "$tmp_img" 2>/dev/null | grep -o 'Size: [0-9]*' | head -1 | grep -o '[0-9]*' || echo "0")
 
   assert_equal "$img_size" "$fixture_size"
+
+  # Cleanup
+  rm -f "$tmp_img"
 }
 
 @test "make-model-disk.sh respects --extra-mib option" {
@@ -94,16 +100,17 @@ skip_if_no_fixture() {
   local fixture="$TESTS_DIR/fixtures/tiny.gguf"
   local tmp_img
   tmp_img=$(mktemp --suffix=.img)
-  trap "rm -f '$tmp_img'" RETURN
 
   # Create with minimal extra space
-  run "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img" --extra-mib 1
-  assert_success
+  "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img" --extra-mib 1
 
   # Image should exist and be at least 1 MiB
   local size
   size=$(stat -c%s "$tmp_img" 2>/dev/null || stat -f%z "$tmp_img" 2>/dev/null)
   assert [ "$size" -ge 1048576 ]  # 1 MiB
+
+  # Cleanup
+  rm -f "$tmp_img"
 }
 
 @test "make-model-disk.sh fails with non-existent file" {
@@ -111,8 +118,9 @@ skip_if_no_fixture() {
   assert_failure
 }
 
-@test "make-model-disk.sh fails without arguments" {
+@test "make-model-disk.sh shows usage without arguments" {
   run "$ROOT_DIR/scripts/make-model-disk.sh"
   # Exit 0 for help, but should show usage
+  assert_success
   assert_output --partial "usage:"
 }

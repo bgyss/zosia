@@ -49,10 +49,11 @@ setup() {
 # make-model-disk.sh error handling
 # ============================================================================
 
-@test "make-model-disk.sh fails without arguments" {
+@test "make-model-disk.sh shows usage without arguments" {
   run "$ROOT_DIR/scripts/make-model-disk.sh" 2>&1
-  assert_failure
-  assert_output --partial "Usage"
+  # Script exits 0 when showing help
+  assert_success
+  assert_output --partial "usage:"
 }
 
 @test "make-model-disk.sh fails with non-existent file" {
