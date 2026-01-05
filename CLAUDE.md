@@ -248,6 +248,54 @@ When making code or behavior changes, ALWAYS update:
 - Always develop on the specified branch
 - Push to the correct branch with `-u origin <branch>`
 
+### Version Bumping
+
+#### Version Progression
+Versions follow a standard release lifecycle progression:
+
+```
+alpha -> beta -> rc -> release
+```
+
+**Examples:**
+```
+v0.0.1-alpha -> v0.0.1-beta -> v0.0.1-rc -> v0.0.1
+v0.0.2-alpha -> v0.0.2-beta -> v0.0.2-rc -> v0.0.2
+v0.1.0-alpha -> v0.1.0-beta -> v0.1.0-rc -> v0.1.0
+```
+
+#### Stage Definitions
+- **alpha**: Early development, unstable, features may change significantly
+- **beta**: Feature-complete for the release, testing phase, API may still change
+- **rc** (release candidate): Feature-frozen, bug fixes only, preparing for release
+- **release** (no suffix): Stable release, ready for production use
+
+#### When to Bump Versions
+
+| Current Stage | Bump To | When |
+|---------------|---------|------|
+| alpha | beta | Core features implemented, ready for broader testing |
+| beta | rc | All features complete, only bug fixes remain |
+| rc | release | Testing complete, no critical bugs |
+| release | next alpha | Starting work on next version |
+
+#### How to Bump a Version
+
+1. Update the version in `scripts/versions.sh` (if applicable)
+2. Update any version references in documentation
+3. Create a git tag for the new version:
+   ```bash
+   git tag -a v0.0.2-beta -m "v0.0.2 beta"
+   git push origin v0.0.2-beta
+   ```
+4. Update the "Project Status" in CLAUDE.md and README.md
+
+#### Semantic Versioning
+This project follows semantic versioning (semver):
+- **MAJOR** (v**X**.0.0): Breaking changes, incompatible API changes
+- **MINOR** (v0.**X**.0): New features, backward-compatible
+- **PATCH** (v0.0.**X**): Bug fixes, backward-compatible
+
 ### ExecPlans for Complex Features
 
 For complex features or significant refactors:
