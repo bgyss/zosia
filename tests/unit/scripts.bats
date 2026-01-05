@@ -110,8 +110,8 @@ setup() {
 
 @test "make-model-disk.sh has usage information" {
   run bash -c "$ROOT_DIR/scripts/make-model-disk.sh 2>&1 || true"
-  # Without args, should show usage
-  assert_output --partial "Usage"
+  # Without args, should show usage (lowercase in script)
+  assert_output --partial "usage:"
 }
 
 # ============================================================================

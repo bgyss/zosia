@@ -4,36 +4,43 @@ This directory contains test fixtures for zosia integration tests.
 
 ## Files
 
-### tiny.gguf (placeholder)
+### tiny.gguf
 
-A minimal GGUF model for testing model disk creation and detection.
-This file is not committed to the repository due to size constraints.
+A minimal 24-byte GGUF file with valid headers but no model data.
+Used for testing model disk creation without storing large model files.
 
-To create a test fixture locally:
+**Format:**
+- Magic: "GGUF" (4 bytes)
+- Version: 3 (uint32 LE, 4 bytes)
+- Tensor count: 0 (uint64 LE, 8 bytes)
+- Metadata KV count: 0 (uint64 LE, 8 bytes)
 
+**Regenerating:**
 ```bash
-# Option 1: Download a tiny test model
-# (No official tiny GGUF available yet - use smallest available)
-
-# Option 2: Create a mock GGUF header for basic testing
-# The GGUF format starts with magic bytes "GGUF" followed by version
-printf 'GGUF' > tests/fixtures/tiny.gguf
+./tests/fixtures/generate-tiny-gguf.sh
 ```
+
+### generate-tiny-gguf.sh
+
+Script to regenerate the tiny.gguf fixture.
 
 ## Usage in Tests
 
-Integration tests that require a model file should:
-1. Check if the fixture exists
-2. Skip the test if not available
-3. Use `skip "Test fixture not available"` in BATS
-
-Example:
 ```bash
-@test "model disk creation works" {
+@test "model disk creation works with tiny fixture" {
+  skip_if_no_e2fsprogs
+
   local fixture="$TESTS_DIR/fixtures/tiny.gguf"
-  if [[ ! -f "$fixture" ]]; then
-    skip "Test fixture not available"
-  fi
-  # ... test code ...
+  local tmp_img
+  tmp_img=$(mktemp)
+  trap "rm -f '$tmp_img'" RETURN
+
+  run "$ROOT_DIR/scripts/make-model-disk.sh" "$fixture" --out "$tmp_img"
+  assert_success
 }
 ```
+
+## CI Considerations
+
+The tiny.gguf fixture is committed to the repository (24 bytes).
+Model disk creation tests require e2fsprogs and are skipped if unavailable.
