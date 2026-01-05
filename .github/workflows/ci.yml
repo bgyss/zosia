@@ -9,14 +9,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             bc bison build-essential cpio flex git libncurses5-dev libssl-dev \
             python3 rsync unzip wget qemu-system-arm ripgrep
+
+      # Cache Buildroot source and output directories
+      # Key is based on versions + configs that affect the build
+      # Buildroot supports incremental builds, so unchanged components are skipped
+      - name: Cache Buildroot
+        uses: actions/cache@v4
+        with:
+          path: |
+            buildroot/output
+            buildroot/buildroot-src
+          key: buildroot-${{ runner.os }}-${{ hashFiles('scripts/versions.sh', 'buildroot/external/configs/zosia_aarch64_defconfig', 'buildroot/external/board/zosia/linux.fragment', 'buildroot/external/package/llama-cpp/**') }}
+          restore-keys: |
+            buildroot-${{ runner.os }}-
+
       - name: Build kernel + initramfs (Buildroot)
         run: ./scripts/build-buildroot.sh
+
       - name: Smoke boot (stub)
         run: ./scripts/ci/smoke-boot.sh
 
